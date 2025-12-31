@@ -7,10 +7,9 @@ from io import StringIO
 
 app = FastAPI()
 
-# Enable CORS for your frontend origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Add your frontend URL
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -19,7 +18,8 @@ app.add_middleware(
 @app.post("/analyze")
 async def analyze(request: dict):
     file_url = request.get('fileUrl')
-    print(f"Received fileUrl: {file_url}")
+    include_full_data = request.get('includeFullData', False)  # New optional flag
+    print(f"Received fileUrl: {file_url}, includeFullData: {include_full_data}")
     if not file_url:
         raise HTTPException(status_code=400, detail="fileUrl is required")
 
@@ -33,25 +33,33 @@ async def analyze(request: dict):
         df = pd.read_csv(StringIO(response.text))
         print(f"Parsed DataFrame with {len(df)} rows and {len(df.columns)} columns")
 
-        # Convert to Python types to avoid numpy serialization issues
         summary = {
-            "rows": int(len(df)),  # Convert to int
-            "columns": int(len(df.columns)),  # Convert to int
+            "rows": int(len(df)),
+            "columns": int(len(df.columns)),
             "columnNames": list(df.columns),
             "columnTypes": {k: str(v) for k, v in df.dtypes.astype(str).to_dict().items()},
-            "sampleData": df.head(5).to_dict('records'),
+            "missingValues": {col: int(df[col].isnull().sum()) for col in df.columns},
+            "sampleData": df.head(5).to_dict('records'),  # Keep sample for previews
         }
 
-        # Handle numeric stats with conversion
+        # Add full data if requested and dataset is not too large
+        if include_full_data and len(df) <= 10000:  # Limit to 10k rows to avoid overload
+            summary["fullData"] = df.to_dict('records')
+            print(f"Included full data with {len(df)} rows")
+        elif include_full_data:
+            summary["fullData"] = None
+            print("Dataset too large for full data; skipped")
+
+        # Numeric stats
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         if len(numeric_cols) > 0:
             summary["numericStats"] = {}
             for col in numeric_cols:
                 summary["numericStats"][col] = {
-                    "mean": float(df[col].mean()),  # Convert to float
-                    "min": float(df[col].min()),    # Convert to float
-                    "max": float(df[col].max()),    # Convert to float
-                    "std": float(df[col].std()),    # Convert to float
+                    "mean": float(df[col].mean()),
+                    "min": float(df[col].min()),
+                    "max": float(df[col].max()),
+                    "std": float(df[col].std()),
                 }
 
         print("Analysis complete, returning summary")

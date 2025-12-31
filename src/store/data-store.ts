@@ -80,7 +80,10 @@ export const useDataStore = create<DataStore>((set, get) => ({
 
       // Send to backend
       console.log('Sending to backend:', { fileUrl });
-      const response = await axios.post('http://172.20.74.76:8000/analyze', { fileUrl });
+      const response = await axios.post('http://172.20.74.76:8000/analyze', { 
+        fileUrl, 
+        includeFullData: true, 
+      });
       console.log('Backend response:', response.data);
 
       set({ summary: response.data });
