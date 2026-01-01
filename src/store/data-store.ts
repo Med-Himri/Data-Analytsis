@@ -15,6 +15,7 @@ export interface DataSummary {
   }>;
   missingValues: Record<string, number>;
   sampleData: Record<string, unknown>[];
+  fullData?: Record<string, unknown>[]; 
 }
 
 interface DataStore {
